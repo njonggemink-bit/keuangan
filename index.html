@@ -51,6 +51,36 @@
         footer { text-align: center; font-size: 0.7rem; padding: 16px; color: #64748b; border-top: 1px solid #eef2f6; }
         @media (max-width: 640px) { .stat-number { font-size: 1.4rem; } .tab-btn { padding: 10px 14px; } }
         .loading { text-align: center; padding: 50px; }
+
+        /* ===== NOTIFIKASI MODERN ===== */
+        .notification {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            color: #1e293b;
+            padding: 16px 28px;
+            border-radius: 60px;
+            box-shadow: 0 20px 35px -12px rgba(0,0,0,0.3);
+            font-weight: 600;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            z-index: 9999;
+            animation: fadeInOut 2s ease forwards;
+            border-left: 6px solid;
+        }
+        .notification.success { border-left-color: #10b981; background: #f0fdf4; color: #065f46; }
+        .notification.error { border-left-color: #ef4444; background: #fef2f2; color: #991b1b; }
+        .notification.warning { border-left-color: #f59e0b; background: #fffbeb; color: #92400e; }
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+            15% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+            85% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(0.9); visibility: hidden; }
+        }
     </style>
 </head>
 <body>
@@ -98,7 +128,7 @@
             <div class="form-row">
                 <div class="form-group"><label>Tanggal</label><input type="date" id="tanggalInput"></div>
                 <div class="form-group"><label>Tipe</label><select id="tipeInput"><option value="income">💵 Pemasukan</option><option value="expense">💸 Pengeluaran</option></select></div>
-                <div class="form-group"><label>Jumlah (Rp)</label><input type="number" id="jumlahInput" step="1000"></div>
+                <div class="form-group"><label>Jumlah (Rp)</label><input type="number" id="jumlahInput" step="1" min="1" placeholder="Minimal 1"></div>
                 <div class="form-group"><label>Keterangan</label><input type="text" id="keteranganInput" placeholder="contoh: gaji"></div>
             </div>
             <div class="form-row">
@@ -147,6 +177,21 @@
 </div>
 
 <script>
+    // ========== NOTIFIKASI KUSTOM ==========
+    function showNotification(message, type = 'success') {
+        const oldNotif = document.querySelector('.notification');
+        if(oldNotif) oldNotif.remove();
+        const notif = document.createElement('div');
+        notif.className = `notification ${type}`;
+        let icon = '';
+        if(type === 'success') icon = '<i class="fas fa-check-circle" style="font-size: 1.3rem;"></i>';
+        else if(type === 'error') icon = '<i class="fas fa-exclamation-circle" style="font-size: 1.3rem;"></i>';
+        else icon = '<i class="fas fa-info-circle" style="font-size: 1.3rem;"></i>';
+        notif.innerHTML = `${icon} <span>${message}</span>`;
+        document.body.appendChild(notif);
+        setTimeout(() => { if(notif && notif.remove) notif.remove(); }, 2000);
+    }
+
     // ========== KONFIGURASI FIREBASE ==========
     const firebaseConfig = {
         apiKey: "AIzaSyD-l6sHbUBfladwPKNmzBRYw8CNZ9UiDd0",
@@ -173,12 +218,10 @@
     function getLastDay(year, month) { return new Date(year, month, 0).getDate(); }
     
     // ========== FUNGSI PERHITUNGAN SALDO PER WALLET ==========
-    // Mendapatkan saldo sebelum tanggal tertentu untuk wallet tertentu
     function getSaldoBeforeByWallet(dateLimit, walletType, walletName = null) {
         let balance = 0;
         for(let t of transactions) {
             if(t.date < dateLimit) {
-                // Jika walletName disediakan, filter berdasarkan nama juga (untuk bank/ewallet spesifik)
                 if(walletName !== null) {
                     if(t.walletType === walletType && t.walletName === walletName) {
                         balance += (t.type === 'income' ? t.amount : -t.amount);
@@ -193,7 +236,6 @@
         return balance;
     }
     
-    // Mendapatkan total saldo per wallet type (agregat semua nama)
     function getTotalSaldoByWalletType(walletType, dateLimit) {
         let balance = 0;
         for(let t of transactions) {
@@ -204,9 +246,8 @@
         return balance;
     }
     
-    // Mendapatkan daftar unik nama bank/ewallet beserta saldo per nama
     function getWalletDetails(walletType, dateLimit) {
-        const map = new Map(); // nama -> saldo
+        const map = new Map();
         for(let t of transactions) {
             if(t.date < dateLimit && t.walletType === walletType) {
                 const name = t.walletName || (walletType === 'cash' ? 'Tunai' : 'Umum');
@@ -217,18 +258,15 @@
         return map;
     }
     
-    // ========== LOGIKA LAPORAN BULANAN (dengan multi wallet) ==========
     function getMonthlyReportByWallet(year, month) {
         const startDate = `${year}-${String(month).padStart(2,'0')}-01`;
         const endDate = `${year}-${String(month).padStart(2,'0')}-${getLastDay(year, month)}`;
         
-        // Total keseluruhan (semua wallet)
         const totalSaldoAwal = getSaldoBefore(startDate);
         const totalIncome = sumByType(startDate, endDate, "income");
         const totalExpense = sumByType(startDate, endDate, "expense");
         const totalSaldoAkhir = totalSaldoAwal + totalIncome - totalExpense;
         
-        // Per wallet type
         const cashSaldoAwal = getTotalSaldoByWalletType('cash', startDate);
         const bankSaldoAwal = getTotalSaldoByWalletType('bank', startDate);
         const ewalletSaldoAwal = getTotalSaldoByWalletType('ewallet', startDate);
@@ -244,15 +282,11 @@
         const bankSaldoAkhir = bankSaldoAwal + bankIncome - bankExpense;
         const ewalletSaldoAkhir = ewalletSaldoAwal + ewalletIncome - ewalletExpense;
         
-        // Detail nama bank/ewallet
         const bankDetails = getWalletDetails('bank', startDate);
         const ewalletDetails = getWalletDetails('ewallet', startDate);
         
-        // Update setelah bulan berjalan? Untuk laporan, saldo yang ditampilkan adalah saldo akhir bulan (termasuk transaksi bulan ini)
-        // Untuk konsistensi, kita gunakan saldo setelah semua transaksi bulan ini.
         const finalBankDetails = new Map();
         for(let [name, bal] of bankDetails) {
-            // tambahkan income/expense bulan ini untuk nama tersebut
             let net = 0;
             for(let t of transactions) {
                 if(t.date >= startDate && t.date <= endDate && t.walletType === 'bank' && t.walletName === name) {
@@ -286,7 +320,6 @@
                            .reduce((s, t) => s + t.amount, 0);
     }
     
-    // Override sumByType asli (tetap dipakai untuk grafik)
     function sumByType(start, end, type) {
         return transactions.filter(t => t.date >= start && t.date <= end && t.type === type)
                            .reduce((s, t) => s + t.amount, 0);
@@ -298,7 +331,6 @@
         return bal;
     }
     
-    // Untuk laporan per bulan (transaksi rinci)
     function getTransactionsInMonth(year, month) {
         const start = `${year}-${String(month).padStart(2,'0')}-01`;
         const end = `${year}-${String(month).padStart(2,'0')}-${getLastDay(year, month)}`;
@@ -308,7 +340,7 @@
     // Render UI
     function renderTransaksiTable() {
         const tbody = document.getElementById("transaksiListBody");
-        if(!transactions.length) { tbody.innerHTML = "<tr><td colspan='7'>Belum ada transaksi</td></td>"; return; }
+        if(!transactions.length) { tbody.innerHTML = "<td><td colspan='7'>Belum ada transaksi</td></tr>"; return; }
         tbody.innerHTML = "";
         transactions.forEach(t => {
             const row = tbody.insertRow();
@@ -340,16 +372,20 @@
         toggleWalletNameInput();
         if(tr.walletName) document.getElementById("walletNameInput").value = tr.walletName;
         await deleteTransaction(id);
-        alert("Edit data: silahkan sesuaikan lalu simpan.");
+        showNotification("Data lama dihapus, silahkan simpan ulang dengan perubahan", "warning");
     }
     
     async function deleteTransaction(id) {
-        if(!confirm("Hapus transaksi?")) return;
+        if(!confirm("Yakin ingin menghapus transaksi ini?")) return;
         await db.collection("transactions").doc(id).delete();
+        showNotification("Transaksi berhasil dihapus", "success");
     }
     
     async function addTransaction(date, type, amount, description, walletType, walletName) {
-        if(!date || amount <= 0) { alert("Tanggal dan jumlah valid"); return false; }
+        if(!date || !amount || amount < 1) {
+            showNotification("Jumlah harus minimal Rp 1", "error");
+            return false;
+        }
         const data = {
             userId: currentUser.uid,
             date, type, amount: Number(amount), description: description.trim() || "-",
@@ -358,6 +394,7 @@
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         };
         await db.collection("transactions").add(data);
+        showNotification("Transaksi berhasil disimpan", "success");
         return true;
     }
     
@@ -397,7 +434,7 @@
         
         const bulanTrans = getTransactionsInMonth(year, month);
         const tbody = document.getElementById("detailBulanBody");
-        tbody.innerHTML = bulanTrans.length ? "" : "<tr><td colspan='6'>Tidak ada transaksi</td></td>";
+        tbody.innerHTML = bulanTrans.length ? "" : "<tr><td colspan='6'>Tidak ada transaksi</td></tr>";
         bulanTrans.forEach(t => {
             const row = tbody.insertRow();
             row.insertCell(0).innerText = t.date;
@@ -413,7 +450,7 @@
         });
     }
     
-    // ========== GRAFIK (tetap menggunakan total semua wallet) ==========
+    // GRAFIK
     function destroyCharts() { if(pieChart) pieChart.destroy(); if(barDailyChart) barDailyChart.destroy(); if(lineMonthlyChart) lineMonthlyChart.destroy(); }
     function updateGrafik() {
         destroyCharts();
@@ -470,7 +507,7 @@
     function toggleMonthPicker() { document.getElementById("monthPickerGrafik").style.display = document.getElementById("grafikPeriode").value === "selectedMonth" ? "flex" : "none"; }
     function refreshAllUI() { renderTransaksiTable(); updateLaporanTab(); if(document.querySelector(".tab-btn.active").getAttribute("data-tab") === "grafik") updateGrafik(); }
     
-    // ========== AUTHENTICATION ==========
+    // AUTHENTICATION
     function showApp(user) {
         document.getElementById("loading").style.display = "none";
         document.getElementById("authPage").style.display = "none";
@@ -484,7 +521,6 @@
                 transactions = [];
                 snapshot.forEach(doc => {
                     let data = doc.data();
-                    // default wallet type untuk transaksi lama
                     if(!data.walletType) data.walletType = 'cash';
                     transactions.push({ id: doc.id, ...data });
                 });
@@ -512,15 +548,25 @@
     document.getElementById("loginBtn").onclick = async () => {
         const email = document.getElementById("loginEmail").value;
         const pass = document.getElementById("loginPassword").value;
-        try { await auth.signInWithEmailAndPassword(email, pass); } catch(e) { document.getElementById("authError").innerText = e.message; }
+        try { 
+            await auth.signInWithEmailAndPassword(email, pass);
+            showNotification("Login berhasil", "success");
+        } catch(e) { 
+            showNotification(e.message, "error");
+        }
     };
     document.getElementById("registerBtn").onclick = async () => {
         const email = document.getElementById("registerEmail").value;
         const pass = document.getElementById("registerPassword").value;
-        try { await auth.createUserWithEmailAndPassword(email, pass); } catch(e) { document.getElementById("registerError").innerText = e.message; }
+        try { 
+            await auth.createUserWithEmailAndPassword(email, pass);
+            showNotification("Registrasi berhasil, silakan login", "success");
+        } catch(e) { 
+            showNotification(e.message, "error");
+        }
     };
-    document.getElementById("googleLoginBtn").onclick = () => auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
-    document.getElementById("googleRegisterBtn").onclick = () => auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+    document.getElementById("googleLoginBtn").onclick = () => auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).then(()=>showNotification("Login Google berhasil","success")).catch(e=>showNotification(e.message,"error"));
+    document.getElementById("googleRegisterBtn").onclick = () => auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).then(()=>showNotification("Registrasi Google berhasil","success")).catch(e=>showNotification(e.message,"error"));
     document.getElementById("showRegisterLink").onclick = () => { document.getElementById("loginForm").style.display = "none"; document.getElementById("registerForm").style.display = "block"; };
     document.getElementById("showLoginLink").onclick = () => { document.getElementById("registerForm").style.display = "none"; document.getElementById("loginForm").style.display = "block"; };
     document.getElementById("logoutBtn").onclick = () => auth.signOut();
@@ -529,11 +575,12 @@
     document.getElementById("simpanTransaksiBtn").onclick = async () => {
         const tgl = document.getElementById("tanggalInput").value;
         const tipe = document.getElementById("tipeInput").value;
-        const jml = parseFloat(document.getElementById("jumlahInput").value);
+        let jml = parseFloat(document.getElementById("jumlahInput").value);
         const ket = document.getElementById("keteranganInput").value;
         const walletType = document.getElementById("walletTypeInput").value;
         const walletName = document.getElementById("walletNameInput").value;
-        if(!tgl || isNaN(jml) || jml <= 0) { alert("Tanggal dan jumlah valid"); return; }
+        if(!tgl) { showNotification("Tanggal harus diisi", "error"); return; }
+        if(isNaN(jml) || jml < 1) { showNotification("Jumlah harus minimal Rp 1", "error"); return; }
         await addTransaction(tgl, tipe, jml, ket, walletType, walletName);
         document.getElementById("jumlahInput").value = "";
         document.getElementById("keteranganInput").value = "";
