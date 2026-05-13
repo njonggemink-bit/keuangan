@@ -111,9 +111,10 @@
     <div class="app-header">
         <h1><i class="fas fa-coins"></i> KeuanganKu</h1>
         <div class="user-info">
-            <i class="fas fa-user-circle"></i> <span id="userEmail">User</span>
-            <button id="logoutBtn" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</button>
-        </div>
+    <i class="fas fa-user-circle"></i> <span id="userEmail">User</span>
+    <button id="refreshDataBtn" class="logout-btn" style="margin-left: 8px; background: rgba(255,255,255,0.2); padding: 6px 12px; border-radius: 40px;"><i class="fas fa-sync-alt"></i> Refresh</button>
+    <button id="logoutBtn" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</button>
+</div>
     </div>
     <div class="tabs">
         <button class="tab-btn active" data-tab="transaksi"><i class="fas fa-book"></i> Transaksi</button>
@@ -570,6 +571,31 @@
     document.getElementById("showRegisterLink").onclick = () => { document.getElementById("loginForm").style.display = "none"; document.getElementById("registerForm").style.display = "block"; };
     document.getElementById("showLoginLink").onclick = () => { document.getElementById("registerForm").style.display = "none"; document.getElementById("loginForm").style.display = "block"; };
     document.getElementById("logoutBtn").onclick = () => auth.signOut();
+    // Tombol Refresh Manual
+document.getElementById("refreshDataBtn").onclick = () => {
+    showNotification("Memuat ulang data...", "warning");
+    if (unsubscribeSnapshot) unsubscribeSnapshot();
+    if (currentUser) {
+        unsubscribeSnapshot = db.collection("transactions")
+            .where("userId", "==", currentUser.uid)
+            .orderBy("date", "asc")
+            .onSnapshot((snapshot) => {
+                transactions = [];
+                snapshot.forEach(doc => {
+                    let data = doc.data();
+                    if(!data.walletType) data.walletType = 'cash';
+                    transactions.push({ id: doc.id, ...data });
+                });
+                refreshAllUI();
+                showNotification("Data berhasil dimuat (" + transactions.length + " transaksi)", "success");
+            }, (error) => {
+                console.error("Snapshot error:", error);
+                showNotification("Error: " + error.message, "error");
+            });
+    } else {
+        showNotification("Belum login", "error");
+    }
+};
     
     document.getElementById("walletTypeInput").addEventListener("change", toggleWalletNameInput);
     document.getElementById("simpanTransaksiBtn").onclick = async () => {
